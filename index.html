@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turistički Vodič: Niš i okolina</title>
+    
+    <!-- Leaflet CSS za mapu -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Google Fonts za Lora -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Lora Handgloves', 'Lora', serif;
+        }
+
+        body, html {
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+        }
+
+        /* Glavni kontejner prema crtežu sa ekrana */
+        .app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            border: 4px solid #000; /* Crni obod monitora */
+        }
+
+        /* Leva strana - Tabela/Meni */
+        .sidebar {
+            width: 300px;
+            background-color: #ffffff;
+            border-right: 2px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #eee;
+            text-align: center;
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.8rem;
+            color: #333;
+            font-family: 'Lora Handgloves', 'Lora', serif;
+            font-weight: normal;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        /* Harmonika (Accordion) stilovi */
+        .kategorija-grupa {
+            border-bottom: 1px solid #edf2f7;
+        }
+
+        .kategorija-dugme {
+            width: 100%;
+            padding: 15px 20px;
+            background: #fff;
+            border: none;
+            text-align: left;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Lora Handgloves', 'Lora', serif;
+            color: #4a5568;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .kategorija-dugme:hover {
+            background-color: #f7fafc;
+        }
+
+        .mesto-stavka {
+            padding: 10px 20px 10px 40px;
+            font-size: 0.90rem;
+            color: #4a5568;
+            border-bottom: 1px dashed #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: default;
+        }
+
+        .mesto-stavka.mesto-expandable {
+            cursor: pointer;
+        }
+
+        .mesto-sublista {
+            display: none;
+            background-color: #f8fafc;
+        }
+
+        .mesto-sublista.otvoreno {
+            display: block;
+        }
+
+        .mesto-substavka {
+            padding: 10px 20px 10px 60px;
+            font-size: 0.80rem;
+            color: #4a5568;
+            border-bottom: 1px dashed #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: default;
+        }
+
+        .mesto-terstavka {
+            padding: 10px 20px 10px 80px;
+            font-size: 0.80rem;
+            color: #4a5568;
+            border-bottom: 1px dashed #e2e8f0;
+            cursor: default;
+        }
+
+        .mesto-link:hover {
+            background-color: rgba(255, 235, 205, 0.7);
+        }
+
+        .mesto-link:hover span {
+            color: #333;
+        }
+
+        .mesto-expandable .sub-arrow {
+            display: inline-block;
+            width: 0;
+            height: 0;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            border-left: 6px solid #4a5568;
+            transition: transform 0.2s ease;
+        }
+
+        .mesto-expandable.otvoreno .sub-arrow {
+            transform: rotate(90deg);
+        }
+
+        /* Aktivno stanje kada je kategorija upaljena (miksanje) */
+        .kategorija-dugme.aktivno {
+            background-color: #edf2f7;
+            color: #000;
+        }
+
+        .kategorija-dugme::after {
+            content: "";
+            display: inline-block;
+            width: 0;
+            height: 0;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+            border-left: 8px solid #4a5568;
+            transition: transform 0.2s ease;
+        }
+
+        .kategorija-dugme.aktivno::after {
+            transform: rotate(90deg);
+        }
+
+        /* Indikator boje pored naziva kategorije u meniju */
+        .boja-indikator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        /* Padajuća lista sa mestima */
+        .mesta-lista {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background-color: #f8fafc;
+        }
+
+        .mesta-lista.otvoreno {
+            max-height: 500px; /* Dovoljno veliko da primi listu */
+            overflow-y: auto;
+        }
+
+        .mesto-stavka {
+            padding: 10px 20px 10px 40px;
+            font-size: 0.9rem;
+            color: #4a5568;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        /* Desna strana - Interaktivna Mapa */
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Stilovi za tekst (labele) iznad tačkica na mapi */
+        .custom-label {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #ffffff; /* Regularna ista boja za sva imena */
+            font-weight: bold;
+            font-size: 11px;
+            text-shadow: 1px 1px 3px #000, -1px -1px 3px #000; /* Da se vidi na satelitu */
+            white-space: nowrap;
+        }
+
+        .item-checkbox {
+            margin-right: 6px;
+            transform: scale(0.9);
+            vertical-align: middle;
+        }
+
+        @keyframes bounceInPlace {
+            0%, 100% { top: 0; }
+            50%       { top: -10px; }
+        }
+
+        .skakutanje-img {
+            position: relative;
+            animation: bounceInPlace 0.5s ease-in-out infinite;
+        }
+
+        @keyframes googlePulseWave {
+            0% {
+                transform: translate(-50%, -50%) scale(0.6);
+                opacity: 0.75;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(3.2);
+                opacity: 0;
+            }
+        }
+
+        .google-maps-marker-wrap {
+            background: transparent !important;
+            border: none !important;
+        }
+
+        .google-maps-marker-inner {
+            position: relative;
+            width: 16px;
+            height: 16px;
+        }
+
+        .google-maps-marker-inner img {
+            position: relative;
+            z-index: 2;
+            display: block;
+            width: 16px;
+            height: 16px;
+        }
+
+        .google-maps-pulse {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: rgba(255, 248, 210, 0.55);
+            box-shadow: 0 0 6px 2px rgba(255, 235, 170, 0.65);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1;
+            animation: googlePulseWave 2.4s ease-out infinite;
+        }
+
+        .google-maps-pulse-delay {
+            animation-delay: 1.2s;
+        }
+
+        .custom-label .tooltip-name-line {
+            display: block;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .leaflet-container .leaflet-tooltip.zoom-label {
+            display: none !important;
+        }
+
+        .leaflet-container.zoom-labels-visible .leaflet-tooltip.zoom-label {
+            display: block !important;
+        }
+        /* Remove the small tooltip arrow so name appears cleanly above icons */
+        .leaflet-tooltip:before,
+        .leaflet-tooltip:after {
+            display: none !important;
+        }
+
+        /* Stilovi za krugove/tačkice */
+        .map-punto {
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 4px #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- LEVA STRANA: MENI SA FILTERIMA -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Niš</h2>
+            </div>
+            <div id="accordion-meni">
+                <!-- Ovde JS automatski ubacuje kategorije i mesta -->
+            </div>
+        </div>
+
+        <!-- DESNA STRANA: VELIKA MAPA -->
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+
+    </div>
+
+    <!-- Leaflet JS za mapu -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // ==========================================
+        // 🛠️ OVDE MANUELNO DODAJEŠ SVOJE LOKACIJE
+        // ==========================================
+        // Možeš dodavati nove kategorije i mesta prateći ovaj šablon.
+        // Boje mogu biti standardne engleske reči (red, blue, green, yellow, purple, orange, cyan...)
+        
+        const mojeLokacije = {
+            "Istorija i Kultura": {
+                boja: "#B8860B", // Tamna zlatna
+                mesta: [
+                    {
+                        naziv: "Niška Tvrdjava",
+                        tip: "poligon",
+                        koordinate: [
+                            [43.323294823975615, 21.89518136483522],
+                            [43.32337467690927, 21.89517891340807],
+                            [43.32349977419233, 21.894696024956467],
+                            [43.32439827241856, 21.89443536834218],
+                            [43.32449472517727, 21.893573390978553],
+                            [43.324667077949606, 21.893488555229762],
+                            [43.32477959752291, 21.892540511557478],
+                            [43.324607887904435, 21.89238963729832],
+                            [43.324752506130864, 21.891175124291493],
+                            [43.325337405449616, 21.89155915155212],
+                            [43.32531106390743, 21.89186022951727],
+                            [43.32651074520042, 21.892186816759413],
+                            [43.32657903671694, 21.89194206518283],
+                            [43.32716140704479, 21.8919661635855],
+                            [43.3272060205948, 21.892500464320364],
+                            [43.32699919675608, 21.89270364165335],
+                            [43.3272255479425, 21.893179405604666],
+                            [43.32746255351823, 21.893278760362616],
+                            [43.327421430927714, 21.893616657709668],
+                            [43.3276824295533, 21.89412031419174],
+                            [43.32780306344814, 21.894013298123014],
+                            [43.32789281608821, 21.893986476031436],
+                            [43.328280751638935, 21.894171331875437],
+                            [43.32833440770147, 21.894297395702594],
+                            [43.32823197843491, 21.894814091731945],
+                            [43.32817047779149, 21.894900262096673],
+                            [43.32802027403581, 21.894918959439874],
+                            [43.32804294503358, 21.89565652427348],
+                            [43.32810684477198, 21.895690722437973],
+                            [43.32815659871949, 21.895783258651527],
+                            [43.32814912082463, 21.895882895430322],
+                            [43.3280944890302, 21.896271815738494],
+                            [43.328592973324746, 21.896535263582393],
+                            [43.3286124845254, 21.896625117586858],
+                            [43.328405979252004, 21.896987803182657],
+                            [43.328325983017486, 21.89702066024399],
+                            [43.32818014828255, 21.896948494561034],
+                            [43.32803912054906, 21.897464730448718],
+                            [43.32825828410504, 21.897547293407293],
+                            [43.328309913866114, 21.89762985636586],
+                            [43.32836154358558, 21.898262839042175],
+                            [43.327808686537345, 21.897963209448474],
+                            [43.32724316367981, 21.89923988719952],
+                            [43.32739833889049, 21.899480611162858],
+                            [43.32719699507954, 21.900248592019953],
+                            [43.32677796093799, 21.89963919830565],
+                            [43.32684234980034, 21.89948698293988],
+                            [43.325919319210946, 21.898377684963116],
+                            [43.325789563854094, 21.89848899663901],
+                            [43.325789563854094, 21.89848899663901],
+                            [43.325571515694236, 21.89837567330559],
+                            [43.325535418158545, 21.898156402720318],
+                            [43.32501999936308, 21.897693140246083],
+                            [43.32495219390383, 21.897803110818707],
+                            [43.32465667208224, 21.897766323868733],
+                            [43.32443520516276, 21.897469269220355],
+                            [43.3243485775729, 21.897155080230938],
+                            [43.32398167010564, 21.897050665687882],
+                            [43.32392557111002, 21.89700439758143],
+                            [43.32353403084605, 21.89586390790533],
+                            [43.32358915456233, 21.89574454960089],
+                            [43.323395001779296, 21.895377757518418],
+                            [43.323301827736074, 21.89538043972954],
+                            [43.323294823975615, 21.89518136483522]
+                        ],
+                        opis: "",
+                        url: 'https://maps.app.goo.gl/Bf1XEPpxVGGTK2Qd6'
+                    },
+                    { naziv: "Ćele Kula", opis: "", lat: 43.312142647069244, lng: 21.9238051688272, url: 'https://maps.app.goo.gl/328rrJhJndFzFFfv8' },
+                    {
+                        naziv: "Medijana",
+                        opis: "",
+                        lat: 43.31005499281817,
+                        lng: 21.948798429005276,
+                        url: 'https://maps.app.goo.gl/ah6D8LrAnXA3mTPN7'
+                    },
+                    {
+                        naziv: "Koncentracioni logor Crveni Krst",
+                        opis: "",
+                        lat: 43.330526908823266,
+                        lng: 21.88859369118675,
+                        url: 'https://maps.app.goo.gl/RQMJ8UFtSttW6jFD6'
+                    },
+                    {
+                        naziv: "Park Bubanj",
+                        opis: "",
+                        lat: 43.30511375478147,
+                        lng: 21.872654743408543,
+                        url: 'https://maps.app.goo.gl/B8jtujmziaNTbWok6'
+                    },
+                    {
+                        naziv: "Narodni muzej Niš",
+                        opis: "",
+                        lat: 43.31842016198857,
+                        lng: 21.89333467428809,
+                        url: 'https://maps.app.goo.gl/JvQfewmsACUnK2219'
+                    },
+                    { naziv: "Spomenici", opis: "" },
+                    {
+                        naziv: "Crkve i Manastiri",
+                        opis: "",
+                        podkategorije: [
+                            {
+                                naziv: "Saborni Hram Svete Trojice",
+                                opis: "",
+                                lat: 43.31517337204732,
+                                lng: 21.896383731758057,
+                                url: 'https://maps.app.goo.gl/bi7adqq3CLqGcpyZ6'
+                            },
+                            {
+                                naziv: "Hram Svetog cara Konstantina i carice Jelene",
+                                opis: "",
+                                lat: 43.32050073491328,
+                                lng: 21.91972373023878,
+                                url: 'https://maps.app.goo.gl/kyB5DUFuhsg9Sgjh9'
+                            },
+                            {
+                                naziv: "Crkva Svetog Nikole",
+                                opis: "",
+                                lat: 43.31135162535611,
+                                lng: 21.902545112507543,
+                                url: 'https://maps.app.goo.gl/DFi95dAdAtNWhWqKA'
+                            }
+                        ,
+                            {
+                                naziv: "Crkva Svetog Pantelejmona",
+                                opis: "",
+                                lat: 43.3337126628509,
+                                lng: 21.910075998489116,
+                                url: 'https://maps.app.goo.gl/stZc8EFnEUhsccJU7'
+                            },
+                            {
+                                naziv: "Latinska crkva (Gornji Matejevac)",
+                                opis: "",
+                                lat: 43.37008681798603,
+                                lng: 21.962943885785563,
+                                url: 'https://maps.app.goo.gl/85Zr7cbckESQaTYk7'
+                            },
+                            {
+                                naziv: "Crkva Svete Petke",
+                                opis: "",
+                                lat: 43.31537286949632,
+                                lng: 21.87816834995892
+                            },
+                            {
+                                naziv: "Katolička crkva Svetog Križa",
+                                opis: "",
+                                lat: 43.31695481652578,
+                                lng: 21.891688443794948,
+                                url: 'https://maps.app.goo.gl/Rteor5JrJv1FyCEc9'
+                            },
+                            {
+                                naziv: "Crkva Svetog Luke",
+                                opis: "",
+                                lat: 43.323697405444605,
+                                lng: 21.90281378073701,
+                                url: 'https://maps.app.goo.gl/D8nXkMtBFRABrzDc8'
+                            },
+                            {
+                                naziv: "Crkva Svetog Vasilija Ostroškog",
+                                opis: "",
+                                lat: 43.321156229982996,
+                                lng: 21.937983023121266,
+                                url: 'https://maps.app.goo.gl/FxYPv6jBiQKnoLxF9'
+                            }
+                        ]
+                    },
+                    {
+                        naziv: "Pozorišta",
+                        opis: "",
+                        podkategorije: [
+                            {
+                                naziv: "Narodno pozorište Niš",
+                                opis: "",
+                                lat: 43.32011606623272,
+                                lng: 21.89985480400198,
+                                url: 'https://maps.app.goo.gl/5qFcT1WvDSeTGKV76'
+                            },
+                            {
+                                naziv: "Pozorište lutaka Niš",
+                                opis: "",
+                                lat: 43.31955250475152,
+                                lng: 21.90826754025975,
+                                url: 'https://maps.app.goo.gl/wccJQJt2dcoBo54dA'
+                            }
+                        ]
+                    },
+                    {
+                        naziv: "Biblioteke",
+                        opis: "",
+                        podkategorije: [
+                            {
+                                naziv: "Narodna biblioteka Stevan Sremac",
+                                opis: "",
+                                lat: 43.31770687942219,
+                                lng: 21.892854124087936,
+                                url: 'https://maps.app.goo.gl/hkbp648KjEoPHWey6'
+                            },
+                            {
+                                naziv: "Univerzitetska biblioteka Nikola Tesla",
+                                opis: "",
+                                lat: 43.322676589504994,
+                                lng: 21.893200019737268,
+                                url: 'https://maps.app.goo.gl/EVLUMeadi4cyGGwSA'
+                            }
+                        ]
+                    },
+                    { naziv: "Simfonijski orkestar", opis: "", lat: 43.32091370637885, lng: 21.893504808832695, url: 'https://maps.app.goo.gl/kRWkA6nKCeinQrrv9' }
+                ]
+            },
+            "Hrana i Piće": {
+                boja: "red", // Crvena
+                mesta: [
+                    { naziv: "Kafane", opis: "" },
+                    { naziv: "Restorani", opis: "" },
+                    { naziv: "Kafići", opis: "" },
+                    { naziv: "Brza hrana", opis: "" },
+                    { naziv: "Pekare", opis: "" },
+                    { naziv: "Vinarije", opis: "" }
+                ]
+            },
+            "Prirodne atrakcije": {
+                boja: "green", // Zelena
+                mesta: [
+                    { naziv: "Parkovi", opis: "" },
+                    { naziv: "Izletišta", opis: "" },
+                    { naziv: "Vidikovci", opis: "" },
+                    { naziv: "Reke", opis: "" },
+                    { naziv: "Jezera", opis: "" },
+                    { naziv: "Planine", opis: "" }
+                ]
+            },
+            "Korisne lokacije #1": {
+                boja: "#CCAA00", // Tamno žuta
+                mesta: [
+                    { naziv: "Hoteli i Apartmani", opis: "" },
+                    { naziv: "Supermarketi", opis: "" },
+                    { naziv: "Tržni centri", opis: "" },
+                    { naziv: "Banke i Bankomati", opis: "" },
+                    { naziv: "Bolnice i Apoteke", opis: "" },
+                    { naziv: "Benzinske pumpe", opis: "" },
+                    { naziv: "Pošte", opis: "" },
+                    { naziv: "Železnička stanica", opis: "" },
+                    { naziv: "Autobuska stanica", opis: "" },
+                    { naziv: "Aerodrom", opis: "" }
+                ]
+            },
+            "Korisne lokacije #2": {
+                boja: "orange", // Narandžasta
+                mesta: [
+                    { naziv: "Turistički info centri", opis: "", podkategorije: [
+                        { naziv: "Turistički info centar", opis: "", lat: 43.32336106090939, lng: 21.895211698588955 },
+                        { naziv: "Turistički info centar", opis: "", lat: 43.320779724501406, lng: 21.895273930881004 }
+                    ] },
+                    { naziv: "Parking prostori", opis: "" },
+                    { naziv: "Punjači za električna vozila", opis: "" },
+                    { naziv: "Automehaničar", opis: "" },
+                    { naziv: "Bazeni", opis: "" },
+                    { naziv: "Bioskopi", opis: "" },
+                    { naziv: "Teretane", opis: "" },
+                    { naziv: "Stadioni", opis: "" },
+                    { naziv: "Fakulteti", opis: "" },
+                    { naziv: "Veterinarske ambulante", opis: "" }
+                ]
+            }
+        };
+
+        // ==========================================
+        // 🗺️ INICIJALIZACIJA MAPE (Satelitski prikaz)
+        // ==========================================
+        
+        // Centriramo mapu na Niš, sa zumom koji lepo obuhvata grad i okolinu
+        const map = L.map('map').setView([43.3209, 21.8954], 11);
+
+        // Učitavanje Esri Satelitskog snimka visokog kvaliteta
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }).addTo(map);
+
+        // Objekat u kom čuvamo aktivne slojeve na mapi kako bismo mogli da ih palimo/gasimo
+        const aktivniSlojevi = {};
+
+        const castleIcon = L.icon({
+            iconUrl: 'ikonice/castle.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const columnIcon = L.icon({
+            iconUrl: 'ikonice/column.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const barbedWireIcon = L.icon({
+            iconUrl: 'ikonice/barbed-wire.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const museumTicketIcon = L.icon({
+            iconUrl: 'ikonice/museum-ticket.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const skullIcon = L.icon({
+            iconUrl: 'ikonice/skull.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const harpIcon = L.icon({
+            iconUrl: 'ikonice/harp.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const centroid = (coords) => {
+            let latSum = 0;
+            let lngSum = 0;
+            coords.forEach(c => {
+                latSum += c[0];
+                lngSum += c[1];
+            });
+            return [latSum / coords.length, lngSum / coords.length];
+        };
+
+        const motivationIcon = L.icon({
+            iconUrl: 'ikonice/motivation.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const openBookIcon = L.icon({
+            iconUrl: 'ikonice/open-book.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const masksIcon = L.icon({
+            iconUrl: 'ikonice/masks.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const christianityIcon = L.icon({
+            iconUrl: 'ikonice/christianity.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const doubtIcon = L.icon({
+            iconUrl: 'ikonice/doubt.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32]
+        });
+
+        const googleMapsIcon = L.divIcon({
+            className: 'google-maps-marker-wrap',
+            html: '<div class="google-maps-marker-inner"><span class="google-maps-pulse"></span><span class="google-maps-pulse google-maps-pulse-delay"></span><img src="ikonice/google-maps.png" alt="" /></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 16]
+        });
+
+        const getIconForItem = (item) => {
+            const specialIcons = {
+                'Medijana': columnIcon,
+                'Koncentracioni logor Crveni Krst': barbedWireIcon,
+                'Park Bubanj': motivationIcon,
+                'Ćele Kula': skullIcon,
+                'Narodni muzej Niš': museumTicketIcon,
+                'Simfonijski orkestar': harpIcon,
+                'Narodna biblioteka Stevan Sremac': openBookIcon,
+                'Univerzitetska biblioteka Nikola Tesla': openBookIcon,
+                'Turistički info centar': doubtIcon,
+                'Narodno pozorište Niš': masksIcon,
+                'Pozorište lutaka Niš': masksIcon,
+                'Saborni Hram Svete Trojice': christianityIcon,
+                'Hram Svetog cara Konstantina i carice Jelene': christianityIcon,
+                'Crkva Svetog Nikole': christianityIcon,
+                'Crkva Svetog Pantelejmona': christianityIcon,
+                'Latinska crkva (Gornji Matejevac)': christianityIcon,
+                'Crkva Svete Petke': christianityIcon,
+                'Katolička crkva Svetog Križa': christianityIcon,
+                'Crkva Svetog Luke': christianityIcon,
+                'Crkva Svetog Vasilija Ostroškog': christianityIcon
+            };
+            return specialIcons[item.naziv] || null;
+        };
+
+        const itemState = {};
+        const itemById = {};
+        const itemsByCategory = {};
+        const folderChildren = {};
+        const folderState = {};
+        const categoriesActive = {};
+        let itemCounter = 0;
+
+        const getTooltipLabel = (item) => {
+            if (item.naziv === 'Koncentracioni logor Crveni Krst') {
+                return '<span class="tooltip-name-line">Koncentracioni logor</span><span class="tooltip-name-line">Crveni Krst</span>';
+            }
+            return item.naziv;
+        };
+
+        const getTooltipClassName = (item) => {
+            return 'custom-label zoom-label';
+        };
+
+        const createLayerForItem = (item, katPodaci) => {
+            const layer = L.layerGroup();
+            if (item.tip === 'poligon' && Array.isArray(item.koordinate)) {
+                const polygon = L.polygon(item.koordinate, {
+                    color: katPodaci.boja,
+                    fillColor: katPodaci.boja,
+                    fillOpacity: 0.3,
+                    weight: 2
+                });
+
+                polygon.bindTooltip(item.naziv, {
+                    permanent: true,
+                    direction: 'center',
+                    className: 'custom-label zoom-label',
+                    offset: [0, 0]
+                });
+
+                polygon.on('mouseover', function(e) {
+                    this.getTooltip().setContent(`<span style="color:#ffd700; font-weight:bold;">${item.naziv}</span><br><span style="font-weight:normal; font-size:12px; white-space: normal; display:block; max-width:200px;">${item.opis}</span>`);
+                });
+
+                polygon.on('mouseout', function(e) {
+                    this.getTooltip().setContent(item.naziv);
+                });
+
+                layer.addLayer(polygon);
+
+                if (item.naziv === 'Niška Tvrdjava') {
+                    const center = centroid(item.koordinate);
+                    const iconMarker = L.marker(center, { icon: castleIcon });
+                    layer.addLayer(iconMarker);
+                }
+            } else if (typeof item.lat === 'number' && typeof item.lng === 'number') {
+                const iconForItem = getIconForItem(item);
+                const marker = iconForItem
+                    ? L.marker([item.lat, item.lng], { icon: iconForItem })
+                    : L.circleMarker([item.lat, item.lng], {
+                        radius: 7,
+                        fillColor: katPodaci.boja,
+                        color: '#ffffff',
+                        weight: 2,
+                        fillOpacity: 1
+                    });
+
+                const tooltipOffset = iconForItem ? [0, -35] : [0, -5];
+                marker.bindTooltip(getTooltipLabel(item), {
+                    permanent: true,
+                    direction: 'top',
+                    className: getTooltipClassName(item),
+                    offset: tooltipOffset
+                });
+
+                marker.on('mouseover', function(e) {
+                    this.getTooltip().setContent(`<span style="color:#ffd700; font-weight:bold;">${getTooltipLabel(item)}</span><br><span style="font-weight:normal; font-size:12px; white-space: normal; display:block; max-width:200px;">${item.opis}</span>`);
+                });
+
+                marker.on('mouseout', function(e) {
+                    this.getTooltip().setContent(getTooltipLabel(item));
+                });
+
+                layer.addLayer(marker);
+            }
+            return layer;
+        };
+
+        const updateItemVisibility = (itemId) => {
+            const state = itemState[itemId];
+            if (!state || !state.layer) return;
+            if (state.checked && state.categoryActive) {
+                if (!map.hasLayer(state.layer)) {
+                    state.layer.addTo(map);
+                }
+            } else {
+                if (map.hasLayer(state.layer)) {
+                    map.removeLayer(state.layer);
+                }
+            }
+        };
+
+        const setCategoryActive = (katNaziv, active) => {
+            const ids = itemsByCategory[katNaziv] || [];
+            ids.forEach(id => {
+                if (itemState[id]) {
+                    itemState[id].categoryActive = active;
+                    updateItemVisibility(id);
+                }
+            });
+        };
+
+        const toggleLocationCheckbox = (itemId, checked) => {
+            if (itemState[itemId]) {
+                itemState[itemId].checked = checked;
+                // If a user manually checks an item and the category is open, allow it to become active
+                const parentCategory = itemState[itemId].parentCategory;
+                itemState[itemId].categoryActive = !!categoriesActive[parentCategory] && checked;
+                updateItemVisibility(itemId);
+                // If this unchecks a child, propagate to parent folder checkbox state
+                const parentFolder = itemState[itemId].parentFolder;
+                if (parentFolder && folderChildren[parentFolder]) {
+                    const anyUnchecked = folderChildren[parentFolder].some(id => itemState[id] && !itemState[id].checked);
+                    if (folderState[parentFolder]) {
+                        folderState[parentFolder].checked = !anyUnchecked;
+                        if (folderState[parentFolder].dom) {
+                            const cb = folderState[parentFolder].dom.querySelector('input[type="checkbox"]');
+                            if (cb) cb.checked = folderState[parentFolder].checked;
+                        }
+                    }
+                }
+            }
+        };
+
+        const zoomThreshold = 14;
+        const updateTooltipVisibility = () => {
+            const showLabels = map.getZoom() >= zoomThreshold;
+            map.getContainer().classList.toggle('zoom-labels-visible', showLabels);
+        };
+
+        map.on('zoomend', updateTooltipVisibility);
+        map.whenReady(function() {
+            updateTooltipVisibility();
+
+            // --- Top-right checkbox control to toggle a single google-maps icon ---
+            const ToggleGoogleControl = L.Control.extend({
+                onAdd: function(map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    container.style.background = 'white';
+                    container.style.padding = '4px';
+                    container.style.margin = '4px';
+                    container.style.borderRadius = '4px';
+                    container.style.boxShadow = '0 1px 4px rgba(0,0,0,0.3)';
+                    container.innerHTML = '<input id="toggleGoogleIcon" type="checkbox" title="Toggle special icon" style="width:16px;height:16px;" />';
+                    L.DomEvent.disableClickPropagation(container);
+                    return container;
+                }
+            });
+
+            map.addControl(new ToggleGoogleControl({ position: 'topright' }));
+
+            const specialLat = 43.323260559948935;
+            const specialLng = 21.89527213166631;
+            let googleMarker = null;
+
+            const cb = document.getElementById('toggleGoogleIcon');
+            if (cb) {
+                cb.checked = false; // start unchecked
+                cb.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        if (!googleMarker) {
+                            googleMarker = L.marker([specialLat, specialLng], { icon: googleMapsIcon, interactive: false });
+                            googleMarker.addTo(map);
+                        }
+                    } else {
+                        if (googleMarker) {
+                            map.removeLayer(googleMarker);
+                            googleMarker = null;
+                        }
+                    }
+                });
+            }
+        });
+
+        // ==========================================
+        // 🔄 GENERISANJE MENIJA I LOGIKE (AI Deo)
+        // =========================================
+        
+        const meniKontejner = document.getElementById('accordion-meni');
+
+        // Prolazimo kroz sve tvoje ručno upisane kategorije
+        Object.keys(mojeLokacije).forEach(katNaziv => {
+            const katPodaci = mojeLokacije[katNaziv];
+            
+            // 1. Pravimo grupu za kategoriju
+            const grupa = document.createElement('div');
+            grupa.className = 'kategorija-grupa';
+
+            // 2. Pravimo glavno dugme kategorije
+            const dugme = document.createElement('button');
+            dugme.className = 'kategorija-dugme';
+            dugme.innerHTML = `
+                <span>
+                    <span class="boja-indikator" style="background-color: ${katPodaci.boja};"></span>
+                    ${katNaziv}
+                </span>
+            `;
+            
+            // 3. Pravimo kontejner za listu mesta unutar te kategorije
+            const listaMesta = document.createElement('div');
+            listaMesta.className = 'mesta-lista';
+
+            const attachUrlLink = (element, item) => {
+                if (item.url) {
+                    element.style.cursor = 'pointer';
+                    element.classList.add('mesto-link');
+                    element.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        window.open(item.url, '_blank');
+                    });
+                }
+            };
+
+            const isLocation = (item) => {
+                return item.tip === 'poligon' || (typeof item.lat === 'number' && typeof item.lng === 'number');
+            };
+
+            const createTextLeaf = (leaf, container, itemClass) => {
+                const leafItem = document.createElement('div');
+                leafItem.className = itemClass;
+                leafItem.innerText = leaf.naziv;
+                attachUrlLink(leafItem, leaf);
+                container.appendChild(leafItem);
+            };
+
+            const createLeafItem = (leaf, container, itemClass, parentFolderKey = null) => {
+                const leafItem = document.createElement('div');
+                leafItem.className = itemClass;
+                const itemId = `item-${itemCounter++}`;
+                leaf.itemId = itemId;
+                // Default checked state; for two specific items in Istorija, start unchecked
+                const defaultChecked = !(katNaziv === 'Istorija i Kultura' && (leaf.naziv === 'Narodni muzej Niš' || leaf.naziv === 'Simfonijski orkestar'));
+                itemState[itemId] = {
+                    checked: defaultChecked,
+                    categoryActive: false,
+                    layer: null,
+                    parentCategory: katNaziv,
+                    parentFolder: parentFolderKey
+                };
+                itemById[itemId] = leaf;
+                itemsByCategory[katNaziv] = itemsByCategory[katNaziv] || [];
+                itemsByCategory[katNaziv].push(itemId);
+                if (parentFolderKey) {
+                    folderChildren[parentFolderKey] = folderChildren[parentFolderKey] || [];
+                    folderChildren[parentFolderKey].push(itemId);
+                }
+                leafItem.setAttribute('data-itemid', itemId);
+                leafItem.innerHTML = `<label><input type="checkbox" class="item-checkbox" checked /> <span>${leaf.naziv}</span></label>`;
+
+                const checkbox = leafItem.querySelector('input[type="checkbox"]');
+                checkbox.checked = itemState[itemId].checked;
+                checkbox.addEventListener('click', (e) => e.stopPropagation());
+                checkbox.addEventListener('change', (e) => {
+                    // When a child is manually unchecked, uncheck its parent folder checkbox
+                    toggleLocationCheckbox(itemId, e.target.checked);
+                    if (itemState[itemId].parentFolder) {
+                        const fkey = itemState[itemId].parentFolder;
+                        const children = folderChildren[fkey] || [];
+                        const anyUnchecked = children.some(id => itemState[id] && !itemState[id].checked);
+                        if (folderState[fkey]) {
+                            folderState[fkey].checked = !anyUnchecked;
+                            const dom = folderState[fkey].dom;
+                            if (dom) {
+                                const cb = dom.querySelector('input[type="checkbox"]');
+                                if (cb) cb.checked = folderState[fkey].checked;
+                            }
+                        }
+                    }
+                });
+
+                attachUrlLink(leafItem, leaf);
+                // Hover animation: bounce corresponding map marker/label while hovering the list name
+                leafItem.addEventListener('mouseenter', () => {
+                    const state = itemState[itemId];
+                    if (!state) return;
+                    if (!state.layer) state.layer = createLayerForItem(leaf, katPodaci);
+                    if (!map.hasLayer(state.layer)) return;
+                    state.layer.getLayers().forEach(l => {
+                        if (l._icon) {
+                            const img = l._icon.tagName === 'IMG'
+                                ? l._icon
+                                : (l._icon.querySelector && l._icon.querySelector('img'));
+                            if (img) img.classList.add('skakutanje-img');
+                        }
+                        if (l.openTooltip) {
+                            l.openTooltip();
+                        }
+                    });
+                });
+
+                leafItem.addEventListener('mouseleave', () => {
+                    const state = itemState[itemId];
+                    if (!state || !state.layer) return;
+                    if (!map.hasLayer(state.layer)) return;
+                    state.layer.getLayers().forEach(l => {
+                        if (l._icon) {
+                            const img = l._icon.tagName === 'IMG'
+                                ? l._icon
+                                : (l._icon.querySelector && l._icon.querySelector('img'));
+                            if (img) img.classList.remove('skakutanje-img');
+                        }
+                        if (l.closeTooltip && map.getZoom() < zoomThreshold) {
+                            l.closeTooltip();
+                        }
+                    });
+                });
+
+                container.appendChild(leafItem);
+            };
+
+            const renderMesto = (mesto, depth = 1) => {
+                const hasChildren = Array.isArray(mesto.podkategorije) && mesto.podkategorije.length > 0;
+                const item = document.createElement('div');
+                const levelClass = depth === 1 ? 'mesto-stavka' : 'mesto-substavka';
+                item.className = hasChildren ? `${levelClass} mesto-expandable` : levelClass;
+                const folderNames = ['Crkve i Manastiri', 'Pozorišta', 'Biblioteke', 'Spomenici'];
+                const shouldShowSubArrow = hasChildren && folderNames.includes(mesto.naziv);
+
+                if (!hasChildren) {
+                    if (folderNames.includes(mesto.naziv)) {
+                        // Render a checkbox for semantic folders that have no explicit children
+                        const folderKey = `${katNaziv}::${mesto.naziv}`;
+                        folderState[folderKey] = folderState[folderKey] || { checked: true, expanded: false, dom: null };
+                        const leafItem = document.createElement('div');
+                        leafItem.className = levelClass;
+                        leafItem.innerHTML = `<label><input type="checkbox" class="folder-checkbox" checked /> <span>${mesto.naziv}</span></label>`;
+                        const fcb = leafItem.querySelector('input[type="checkbox"]');
+                        folderState[folderKey].dom = leafItem;
+                        fcb.addEventListener('click', (e) => e.stopPropagation());
+                        fcb.addEventListener('change', (e) => {
+                            folderState[folderKey].checked = e.target.checked;
+                            const children = folderChildren[folderKey] || [];
+                            children.forEach(id => {
+                                if (itemState[id]) {
+                                    itemState[id].checked = e.target.checked;
+                                    const dom = document.querySelector(`[data-itemid="${id}"] input[type=checkbox]`);
+                                    if (dom) dom.checked = e.target.checked;
+                                    updateItemVisibility(id);
+                                }
+                            });
+                        });
+                        listaMesta.appendChild(leafItem);
+                    } else {
+                        if (isLocation(mesto)) {
+                            createLeafItem(mesto, listaMesta, levelClass);
+                        } else {
+                            createTextLeaf(mesto, listaMesta, levelClass);
+                        }
+                    }
+                } else {
+                    const folderKey = `${katNaziv}::${mesto.naziv}`;
+                    folderState[folderKey] = folderState[folderKey] || { checked: true, expanded: false, dom: null };
+                    const checkboxHtml = folderNames.includes(mesto.naziv) ? `<label><input type="checkbox" class="folder-checkbox" checked /> <span>${mesto.naziv}</span></label>` : `<span>${mesto.naziv}</span>`;
+                    item.innerHTML = `${checkboxHtml}${shouldShowSubArrow ? '<span class="sub-arrow"></span>' : ''}`;
+                    listaMesta.appendChild(item);
+                    const fcb = item.querySelector('input[type="checkbox"]');
+                    folderState[folderKey].dom = item;
+                    if (fcb) {
+                        fcb.addEventListener('click', (e) => e.stopPropagation());
+                        fcb.addEventListener('change', (e) => {
+                            folderState[folderKey].checked = e.target.checked;
+                            const children = folderChildren[folderKey] || [];
+                            children.forEach(id => {
+                                if (itemState[id]) {
+                                    itemState[id].checked = e.target.checked;
+                                    const dom = document.querySelector(`[data-itemid="${id}"] input[type=checkbox]`);
+                                    if (dom) dom.checked = e.target.checked;
+                                    updateItemVisibility(id);
+                                }
+                            });
+                        });
+                    }
+                }
+
+                if (hasChildren) {
+                    const podLista = document.createElement('div');
+                    podLista.className = 'mesto-sublista';
+                    const subLayerKey = `${katNaziv}::${mesto.naziv}`;
+
+                    mesto.podkategorije.forEach(pod => {
+                        if (Array.isArray(pod.podkategorije) && pod.podkategorije.length > 0) {
+                            const podstavka = document.createElement('div');
+                            podstavka.className = 'mesto-substavka mesto-expandable';
+                            podstavka.innerHTML = `<span>${pod.naziv}</span>`;
+                            podLista.appendChild(podstavka);
+
+                            const podPodLista = document.createElement('div');
+                            podPodLista.className = 'mesto-sublista';
+                            pod.podkategorije.forEach(podPod => {
+                                if (isLocation(podPod)) {
+                                    createLeafItem(podPod, podPodLista, 'mesto-terstavka', subLayerKey);
+                                } else {
+                                    createTextLeaf(podPod, podPodLista, 'mesto-terstavka');
+                                }
+                            });
+
+                            podstavka.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                const otvoreno = podPodLista.classList.toggle('otvoreno');
+                                podstavka.classList.toggle('otvoreno', otvoreno);
+                                // Propagate expand state to folder state so visibility rules apply
+                                folderState[subLayerKey] = folderState[subLayerKey] || { checked: true, expanded: false, dom: null };
+                                folderState[subLayerKey].expanded = otvoreno;
+                                const children = folderChildren[subLayerKey] || [];
+                                children.forEach(id => {
+                                    if (itemState[id]) {
+                                        // child becomes categoryActive only when category is active and folder expanded
+                                        itemState[id].categoryActive = categoriesActive[katNaziv] && otvoreno;
+                                        updateItemVisibility(id);
+                                    }
+                                });
+                            });
+
+                            podLista.appendChild(podPodLista);
+                        } else {
+                            if (isLocation(pod)) {
+                                createLeafItem(pod, podLista, 'mesto-substavka', subLayerKey);
+                            } else {
+                                createTextLeaf(pod, podLista, 'mesto-substavka');
+                            }
+                        }
+                    });
+
+                    item.addEventListener('click', () => {
+                        const otvoreno = podLista.classList.toggle('otvoreno');
+                        item.classList.toggle('otvoreno', otvoreno);
+                        // When folder is opened/closed, mark expanded and update children visibility
+                        const folderKey = `${katNaziv}::${mesto.naziv}`;
+                        folderState[folderKey] = folderState[folderKey] || { checked: true, expanded: false, dom: null };
+                        folderState[folderKey].expanded = otvoreno;
+                        const children = folderChildren[folderKey] || [];
+                        children.forEach(id => {
+                            if (itemState[id]) {
+                                itemState[id].categoryActive = categoriesActive[katNaziv] && otvoreno;
+                                updateItemVisibility(id);
+                            }
+                        });
+                    });
+
+                    listaMesta.appendChild(podLista);
+                }
+            };
+
+            const addMarkers = (item, recursive = true) => {
+                const hasChildren = Array.isArray(item.podkategorije) && item.podkategorije.length > 0;
+                if (!hasChildren) {
+                    if (!item.itemId) return;
+                    const state = itemState[item.itemId];
+                    if (!state) return;
+                    if (!state.layer) {
+                        state.layer = createLayerForItem(item, katPodaci);
+                    }
+                    updateItemVisibility(item.itemId);
+                }
+
+                if (recursive && hasChildren) {
+                    item.podkategorije.forEach(pod => addMarkers(pod, true));
+                }
+            };
+
+            // Napunimo listu mestima
+            katPodaci.mesta.forEach(mesto => renderMesto(mesto));
+
+            grupa.appendChild(dugme);
+            grupa.appendChild(listaMesta);
+            meniKontejner.appendChild(grupa);
+
+            // 4. Klik na kategoriju (Glavna logika za miksanje i otvaranje)
+            dugme.addEventListener('click', () => {
+                const jeAktivno = dugme.classList.toggle('aktivno');
+                listaMesta.classList.toggle('otvoreno');
+                categoriesActive[katNaziv] = jeAktivno;
+
+                // Special handling for Istorija i Kultura: show only five named locations
+                const istorijaFive = new Set(['Niška Tvrdjava','Ćele Kula','Medijana','Koncentracioni logor Crveni Krst','Park Bubanj']);
+                const folderNames = ['Crkve i Manastiri', 'Pozorišta', 'Biblioteke', 'Spomenici'];
+
+                if (jeAktivno) {
+                    // Ensure layers are created for all items (but visibility controlled below)
+                    katPodaci.mesta.forEach(mesto => addMarkers(mesto, true));
+
+                    if (katNaziv === 'Istorija i Kultura') {
+                        // Ensure these two start unchecked when opening the category
+                        const forceUnchecked = new Set(['Narodni muzej Niš','Simfonijski orkestar']);
+                        const allIds = itemsByCategory[katNaziv] || [];
+                        allIds.forEach(id => {
+                            const it = itemById[id];
+                            if (it && forceUnchecked.has(it.naziv)) {
+                                itemState[id].checked = false;
+                                itemState[id].categoryActive = false;
+                                const dom0 = document.querySelector(`[data-itemid="${id}"] input[type=checkbox]`);
+                                if (dom0) dom0.checked = false;
+                                updateItemVisibility(id);
+                            }
+                        });
+                        const ids = itemsByCategory[katNaziv] || [];
+                        ids.forEach(id => {
+                            const item = itemById[id];
+                            if (!item) return;
+                            // If item is one of the five, check+show
+                            if (istorijaFive.has(item.naziv)) {
+                                itemState[id].checked = true;
+                                itemState[id].categoryActive = true;
+                                const dom = document.querySelector(`[data-itemid="${id}"] input[type=checkbox]`);
+                                if (dom) dom.checked = true;
+                            } else if (itemState[id].parentFolder) {
+                                // Items inside named folders: keep their checkboxes checked but do not show until folder expanded
+                                itemState[id].checked = true;
+                                itemState[id].categoryActive = false;
+                                const dom = document.querySelector(`[data-itemid="${id}"] input[type=checkbox]`);
+                                if (dom) dom.checked = true;
+                                // Ensure folder checkbox is checked
+                                const fkey = itemState[id].parentFolder;
+                                folderState[fkey] = folderState[fkey] || { checked: true, expanded: false, dom: null };
+                                folderState[fkey].checked = true;
+                                if (folderState[fkey].dom) {
+                                    const fdomcb = folderState[fkey].dom.querySelector('input[type=checkbox]');
+                                    if (fdomcb) fdomcb.checked = true;
+                                }
+                            } else {
+                                // Do not override user's manual checkbox state.
+                                // Ensure categoryActive is only true if the item was already checked and category is active.
+                                itemState[id].categoryActive = !!itemState[id].checked && !!categoriesActive[katNaziv];
+                                const dom = document.querySelector(`[data-itemid="${id}"] input[type=checkbox]`);
+                                if (dom) dom.checked = !!itemState[id].checked;
+                            }
+                            updateItemVisibility(id);
+                        });
+                    } else {
+                        // Default: activate all items in category
+                        setCategoryActive(katNaziv, true);
+                    }
+                } else {
+                    // Category closed: hide all
+                    setCategoryActive(katNaziv, false);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
